@@ -1,0 +1,40 @@
+name: "Test"
+description: "Run all test projects with coverage reporting"
+
+inputs:
+  configuration:
+    description: "Build configuration"
+    required: false
+    default: "Release"
+  collect-coverage:
+    description: "Whether to collect code coverage"
+    required: false
+    default: "true"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Run unit tests
+      shell: bash
+      run: |
+        dotnet test Heimdall.sln \
+          --configuration ${{ inputs.configuration }} \
+          --no-build \
+          --verbosity normal \
+          --logger "trx;LogFileName=test-results.trx" \
+          --results-directory ./test-results \
+          ${{ inputs.collect-coverage == 'true' && '--collect:"XPlat Code Coverage"' || '' }}
+
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-results
+        path: ./test-results/**/*.trx
+
+    - name: Upload coverage reports
+      if: always() && inputs.collect-coverage == 'true'
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-reports
+        path: ./test-results/**/coverage.cobertura.xml

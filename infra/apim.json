@@ -1,0 +1,192 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.44.1.10279",
+      "templateHash": "12680201343865091080"
+    }
+  },
+  "parameters": {
+    "location": {
+      "type": "string",
+      "metadata": {
+        "description": "Azure region for the API Management instance"
+      }
+    },
+    "resourceSuffix": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource naming suffix (e.g., heimdall-dev)"
+      }
+    },
+    "skuName": {
+      "type": "string",
+      "allowedValues": [
+        "Developer",
+        "Basic",
+        "Standard",
+        "Premium",
+        "Consumption"
+      ],
+      "metadata": {
+        "description": "API Management SKU name"
+      }
+    },
+    "skuCapacity": {
+      "type": "int",
+      "defaultValue": 1,
+      "metadata": {
+        "description": "API Management SKU capacity (number of units)"
+      }
+    },
+    "publisherEmail": {
+      "type": "string",
+      "metadata": {
+        "description": "Publisher email address"
+      }
+    },
+    "publisherName": {
+      "type": "string",
+      "metadata": {
+        "description": "Publisher organization name"
+      }
+    },
+    "appInsightsInstrumentationKey": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Application Insights instrumentation key for APIM logging"
+      }
+    },
+    "appInsightsId": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Application Insights resource ID"
+      }
+    },
+    "tags": {
+      "type": "object",
+      "defaultValue": {},
+      "metadata": {
+        "description": "Resource tags"
+      }
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.ApiManagement/service",
+      "apiVersion": "2023-03-01-preview",
+      "name": "[format('apim-{0}', parameters('resourceSuffix'))]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
+      "sku": {
+        "name": "[parameters('skuName')]",
+        "capacity": "[parameters('skuCapacity')]"
+      },
+      "properties": {
+        "publisherEmail": "[parameters('publisherEmail')]",
+        "publisherName": "[parameters('publisherName')]",
+        "customProperties": {
+          "Microsoft.WindowsAzure.ApiManagement.Gateway.Security.Protocols.Tls10": "False",
+          "Microsoft.WindowsAzure.ApiManagement.Gateway.Security.Protocols.Tls11": "False",
+          "Microsoft.WindowsAzure.ApiManagement.Gateway.Security.Protocols.Ssl30": "False",
+          "Microsoft.WindowsAzure.ApiManagement.Gateway.Security.Backend.Protocols.Tls10": "False",
+          "Microsoft.WindowsAzure.ApiManagement.Gateway.Security.Backend.Protocols.Tls11": "False",
+          "Microsoft.WindowsAzure.ApiManagement.Gateway.Security.Backend.Protocols.Ssl30": "False"
+        }
+      }
+    },
+    {
+      "condition": "[not(empty(parameters('appInsightsInstrumentationKey')))]",
+      "type": "Microsoft.ApiManagement/service/loggers",
+      "apiVersion": "2023-03-01-preview",
+      "name": "[format('{0}/{1}', format('apim-{0}', parameters('resourceSuffix')), 'appinsights-logger')]",
+      "properties": {
+        "loggerType": "applicationInsights",
+        "resourceId": "[parameters('appInsightsId')]",
+        "credentials": {
+          "instrumentationKey": "[parameters('appInsightsInstrumentationKey')]"
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ApiManagement/service', format('apim-{0}', parameters('resourceSuffix')))]"
+      ]
+    },
+    {
+      "condition": "[not(empty(parameters('appInsightsInstrumentationKey')))]",
+      "type": "Microsoft.ApiManagement/service/diagnostics",
+      "apiVersion": "2023-03-01-preview",
+      "name": "[format('{0}/{1}', format('apim-{0}', parameters('resourceSuffix')), 'applicationinsights')]",
+      "properties": {
+        "loggerId": "[resourceId('Microsoft.ApiManagement/service/loggers', format('apim-{0}', parameters('resourceSuffix')), 'appinsights-logger')]",
+        "alwaysLog": "allErrors",
+        "sampling": {
+          "percentage": 100,
+          "samplingType": "fixed"
+        },
+        "frontend": {
+          "request": {
+            "body": {
+              "bytes": 0
+            }
+          },
+          "response": {
+            "body": {
+              "bytes": 0
+            }
+          }
+        },
+        "backend": {
+          "request": {
+            "body": {
+              "bytes": 0
+            }
+          },
+          "response": {
+            "body": {
+              "bytes": 0
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ApiManagement/service', format('apim-{0}', parameters('resourceSuffix')))]",
+        "[resourceId('Microsoft.ApiManagement/service/loggers', format('apim-{0}', parameters('resourceSuffix')), 'appinsights-logger')]"
+      ]
+    },
+    {
+      "type": "Microsoft.ApiManagement/service/apis",
+      "apiVersion": "2023-03-01-preview",
+      "name": "[format('{0}/{1}', format('apim-{0}', parameters('resourceSuffix')), 'heimdall-access-api')]",
+      "properties": {
+        "displayName": "Heimdall Access API",
+        "path": "api",
+        "protocols": [
+          "https"
+        ],
+        "subscriptionRequired": false,
+        "apiType": "http"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ApiManagement/service', format('apim-{0}', parameters('resourceSuffix')))]"
+      ]
+    }
+  ],
+  "outputs": {
+    "apimId": {
+      "type": "string",
+      "value": "[resourceId('Microsoft.ApiManagement/service', format('apim-{0}', parameters('resourceSuffix')))]"
+    },
+    "apimName": {
+      "type": "string",
+      "value": "[format('apim-{0}', parameters('resourceSuffix'))]"
+    },
+    "gatewayUrl": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.ApiManagement/service', format('apim-{0}', parameters('resourceSuffix'))), '2023-03-01-preview').gatewayUrl]"
+    }
+  }
+}

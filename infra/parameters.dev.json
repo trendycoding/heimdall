@@ -1,0 +1,30 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "environment": {
+      "value": "dev"
+    },
+    "location": {
+      "value": "eastus"
+    },
+    "baseName": {
+      "value": "heimdall"
+    },
+    "sqlAdminLogin": {
+      "value": "heimdalladmin"
+    },
+    "sqlAdminPassword": {
+      "value": ""
+    },
+    "platformDisplayName": {
+      "value": "Heimdall Access (Dev)"
+    },
+    "containerImage": {
+      "value": "mcr.microsoft.com/dotnet/aspnet:8.0"
+    },
+    "allowedIpAddresses": {
+      "value": []
+    }
+  }
+}

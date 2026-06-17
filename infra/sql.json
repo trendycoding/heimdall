@@ -1,0 +1,204 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.44.1.10279",
+      "templateHash": "14269746729933893313"
+    }
+  },
+  "parameters": {
+    "location": {
+      "type": "string",
+      "metadata": {
+        "description": "Azure region for the SQL resources"
+      }
+    },
+    "resourceSuffix": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource naming suffix (e.g., heimdall-dev)"
+      }
+    },
+    "administratorLogin": {
+      "type": "securestring",
+      "metadata": {
+        "description": "SQL Server administrator login"
+      }
+    },
+    "administratorPassword": {
+      "type": "securestring",
+      "metadata": {
+        "description": "SQL Server administrator password"
+      }
+    },
+    "skuName": {
+      "type": "string",
+      "metadata": {
+        "description": "SQL Database SKU name (e.g., Basic, S0, S1)"
+      }
+    },
+    "skuTier": {
+      "type": "string",
+      "metadata": {
+        "description": "SQL Database SKU tier (e.g., Basic, Standard, Premium)"
+      }
+    },
+    "skuCapacity": {
+      "type": "int",
+      "metadata": {
+        "description": "SQL Database SKU capacity (DTU)"
+      }
+    },
+    "maxSizeBytes": {
+      "type": "int",
+      "metadata": {
+        "description": "Maximum database size in bytes"
+      }
+    },
+    "backupRetentionDays": {
+      "type": "int",
+      "metadata": {
+        "description": "Point-in-time backup retention in days"
+      }
+    },
+    "logAnalyticsWorkspaceId": {
+      "type": "string",
+      "metadata": {
+        "description": "Log Analytics Workspace ID for diagnostics"
+      }
+    },
+    "tags": {
+      "type": "object",
+      "defaultValue": {},
+      "metadata": {
+        "description": "Resource tags"
+      }
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Sql/servers",
+      "apiVersion": "2023-05-01-preview",
+      "name": "[format('sql-{0}', parameters('resourceSuffix'))]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
+      "properties": {
+        "administratorLogin": "[parameters('administratorLogin')]",
+        "administratorLoginPassword": "[parameters('administratorPassword')]",
+        "version": "12.0",
+        "minimalTlsVersion": "1.2",
+        "publicNetworkAccess": "Enabled"
+      }
+    },
+    {
+      "type": "Microsoft.Sql/servers/databases",
+      "apiVersion": "2023-05-01-preview",
+      "name": "[format('{0}/{1}', format('sql-{0}', parameters('resourceSuffix')), 'heimdalldb')]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
+      "sku": {
+        "name": "[parameters('skuName')]",
+        "tier": "[parameters('skuTier')]",
+        "capacity": "[parameters('skuCapacity')]"
+      },
+      "properties": {
+        "maxSizeBytes": "[parameters('maxSizeBytes')]",
+        "collation": "SQL_Latin1_General_CP1_CI_AS",
+        "isLedgerOn": false
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Sql/servers', format('sql-{0}', parameters('resourceSuffix')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Sql/servers/databases/backupShortTermRetentionPolicies",
+      "apiVersion": "2023-05-01-preview",
+      "name": "[format('{0}/{1}/{2}', format('sql-{0}', parameters('resourceSuffix')), 'heimdalldb', 'default')]",
+      "properties": {
+        "retentionDays": "[parameters('backupRetentionDays')]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Sql/servers/databases', format('sql-{0}', parameters('resourceSuffix')), 'heimdalldb')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Sql/servers/databases/transparentDataEncryption",
+      "apiVersion": "2023-05-01-preview",
+      "name": "[format('{0}/{1}/{2}', format('sql-{0}', parameters('resourceSuffix')), 'heimdalldb', 'current')]",
+      "properties": {
+        "state": "Enabled"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Sql/servers/databases', format('sql-{0}', parameters('resourceSuffix')), 'heimdalldb')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Sql/servers/firewallRules",
+      "apiVersion": "2023-05-01-preview",
+      "name": "[format('{0}/{1}', format('sql-{0}', parameters('resourceSuffix')), 'AllowAllAzureIps')]",
+      "properties": {
+        "startIpAddress": "0.0.0.0",
+        "endIpAddress": "0.0.0.0"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Sql/servers', format('sql-{0}', parameters('resourceSuffix')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Insights/diagnosticSettings",
+      "apiVersion": "2021-05-01-preview",
+      "scope": "[resourceId('Microsoft.Sql/servers/databases', format('sql-{0}', parameters('resourceSuffix')), 'heimdalldb')]",
+      "name": "sql-diagnostics",
+      "properties": {
+        "workspaceId": "[parameters('logAnalyticsWorkspaceId')]",
+        "logs": [
+          {
+            "category": "SQLSecurityAuditEvents",
+            "enabled": true
+          },
+          {
+            "category": "QueryStoreRuntimeStatistics",
+            "enabled": true
+          },
+          {
+            "category": "Errors",
+            "enabled": true
+          }
+        ],
+        "metrics": [
+          {
+            "category": "Basic",
+            "enabled": true
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Sql/servers/databases', format('sql-{0}', parameters('resourceSuffix')), 'heimdalldb')]"
+      ]
+    }
+  ],
+  "outputs": {
+    "serverId": {
+      "type": "string",
+      "value": "[resourceId('Microsoft.Sql/servers', format('sql-{0}', parameters('resourceSuffix')))]"
+    },
+    "serverName": {
+      "type": "string",
+      "value": "[format('sql-{0}', parameters('resourceSuffix'))]"
+    },
+    "serverFqdn": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Sql/servers', format('sql-{0}', parameters('resourceSuffix'))), '2023-05-01-preview').fullyQualifiedDomainName]"
+    },
+    "databaseName": {
+      "type": "string",
+      "value": "heimdalldb"
+    },
+    "databaseId": {
+      "type": "string",
+      "value": "[resourceId('Microsoft.Sql/servers/databases', format('sql-{0}', parameters('resourceSuffix')), 'heimdalldb')]"
+    }
+  }
+}

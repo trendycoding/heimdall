@@ -1,0 +1,105 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.44.1.10279",
+      "templateHash": "10508773308961774208"
+    }
+  },
+  "parameters": {
+    "location": {
+      "type": "string",
+      "metadata": {
+        "description": "Azure region for the App Configuration"
+      }
+    },
+    "resourceSuffix": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource naming suffix (e.g., heimdall-dev)"
+      }
+    },
+    "platformDisplayName": {
+      "type": "string",
+      "defaultValue": "Heimdall Access",
+      "metadata": {
+        "description": "Platform display name to store in App Configuration"
+      }
+    },
+    "environment": {
+      "type": "string",
+      "allowedValues": [
+        "dev",
+        "staging",
+        "prod"
+      ],
+      "metadata": {
+        "description": "Deployment environment label"
+      }
+    },
+    "tags": {
+      "type": "object",
+      "defaultValue": {},
+      "metadata": {
+        "description": "Resource tags"
+      }
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.AppConfiguration/configurationStores",
+      "apiVersion": "2023-03-01",
+      "name": "[format('appcs-{0}', parameters('resourceSuffix'))]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
+      "sku": {
+        "name": "[if(equals(parameters('environment'), 'prod'), 'standard', 'free')]"
+      },
+      "properties": {
+        "disableLocalAuth": false,
+        "enablePurgeProtection": "[equals(parameters('environment'), 'prod')]",
+        "softDeleteRetentionInDays": "[if(equals(parameters('environment'), 'prod'), 7, 1)]"
+      }
+    },
+    {
+      "type": "Microsoft.AppConfiguration/configurationStores/keyValues",
+      "apiVersion": "2023-03-01",
+      "name": "[format('{0}/{1}', format('appcs-{0}', parameters('resourceSuffix')), format('Platform:DisplayName${0}', parameters('environment')))]",
+      "properties": {
+        "value": "[parameters('platformDisplayName')]",
+        "contentType": "text/plain"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.AppConfiguration/configurationStores', format('appcs-{0}', parameters('resourceSuffix')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.AppConfiguration/configurationStores/keyValues",
+      "apiVersion": "2023-03-01",
+      "name": "[format('{0}/{1}', format('appcs-{0}', parameters('resourceSuffix')), format('Sentinel${0}', parameters('environment')))]",
+      "properties": {
+        "value": "1",
+        "contentType": "text/plain"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.AppConfiguration/configurationStores', format('appcs-{0}', parameters('resourceSuffix')))]"
+      ]
+    }
+  ],
+  "outputs": {
+    "configStoreId": {
+      "type": "string",
+      "value": "[resourceId('Microsoft.AppConfiguration/configurationStores', format('appcs-{0}', parameters('resourceSuffix')))]"
+    },
+    "configStoreName": {
+      "type": "string",
+      "value": "[format('appcs-{0}', parameters('resourceSuffix'))]"
+    },
+    "endpoint": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.AppConfiguration/configurationStores', format('appcs-{0}', parameters('resourceSuffix'))), '2023-03-01').endpoint]"
+    }
+  }
+}

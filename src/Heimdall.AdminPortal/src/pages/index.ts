@@ -1,0 +1,15 @@
+export { Dashboard } from './Dashboard';
+export { TenantsPage } from './TenantsPage';
+export { ApplicationsPage } from './ApplicationsPage';
+export { IdentityProvidersPage } from './IdentityProvidersPage';
+export { UsersPage } from './UsersPage';
+export { FunctionalAreasPage } from './FunctionalAreasPage';
+export { PermissionTypesPage } from './PermissionTypesPage';
+export { PermissionsPage } from './PermissionsPage';
+export { GroupsPage } from './GroupsPage';
+export { PermissionAssignmentsPage } from './PermissionAssignmentsPage';
+export { AccessDetailsPage } from './AccessDetailsPage';
+export { PermissionTemplatesPage } from './PermissionTemplatesPage';
+export { TemplateBuilderPage } from './TemplateBuilderPage';
+export { AuditLogsPage } from './AuditLogsPage';
+export { ApiCallLogsPage } from './ApiCallLogsPage';

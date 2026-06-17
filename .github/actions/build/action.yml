@@ -1,0 +1,27 @@
+name: "Build"
+description: "Restore and build all .NET projects in Release configuration"
+
+inputs:
+  configuration:
+    description: "Build configuration"
+    required: false
+    default: "Release"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Restore dependencies
+      shell: bash
+      run: dotnet restore Heimdall.sln
+
+    - name: Build solution
+      shell: bash
+      run: dotnet build Heimdall.sln --configuration ${{ inputs.configuration }} --no-restore
+
+    - name: Publish API
+      shell: bash
+      run: |
+        dotnet publish src/Heimdall.Api/Heimdall.Api.csproj \
+          --configuration ${{ inputs.configuration }} \
+          --no-build \
+          --output ./publish/api

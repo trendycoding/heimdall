@@ -1,0 +1,251 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.44.1.10279",
+      "templateHash": "7115129501141957027"
+    }
+  },
+  "parameters": {
+    "storageAccountName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the storage account (must be globally unique, 3-24 lowercase alphanumeric)"
+      }
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]",
+      "metadata": {
+        "description": "Location for all resources"
+      }
+    },
+    "environment": {
+      "type": "string",
+      "allowedValues": [
+        "development",
+        "staging",
+        "production"
+      ],
+      "metadata": {
+        "description": "Environment name"
+      }
+    },
+    "skuName": {
+      "type": "string",
+      "defaultValue": "[if(equals(parameters('environment'), 'production'), 'Standard_GRS', 'Standard_LRS')]",
+      "metadata": {
+        "description": "Storage account SKU"
+      }
+    },
+    "kind": {
+      "type": "string",
+      "defaultValue": "StorageV2",
+      "metadata": {
+        "description": "Storage account kind"
+      }
+    },
+    "enableBlobSoftDelete": {
+      "type": "bool",
+      "defaultValue": "[not(equals(parameters('environment'), 'development'))]",
+      "metadata": {
+        "description": "Enable blob soft delete"
+      }
+    },
+    "blobSoftDeleteRetentionDays": {
+      "type": "int",
+      "defaultValue": "[if(equals(parameters('environment'), 'production'), 35, 7)]",
+      "metadata": {
+        "description": "Blob soft delete retention days"
+      }
+    },
+    "enableTableEncryption": {
+      "type": "bool",
+      "defaultValue": true,
+      "metadata": {
+        "description": "Enable table storage encryption"
+      }
+    },
+    "allowedIpRanges": {
+      "type": "array",
+      "defaultValue": [],
+      "metadata": {
+        "description": "Allowed IP ranges for network rules (staging)"
+      }
+    },
+    "virtualNetworkSubnetIds": {
+      "type": "array",
+      "defaultValue": [],
+      "metadata": {
+        "description": "Virtual network subnet IDs for network rules"
+      }
+    },
+    "tags": {
+      "type": "object",
+      "defaultValue": {},
+      "metadata": {
+        "description": "Tags to apply to resources"
+      }
+    }
+  },
+  "variables": {
+    "copy": [
+      {
+        "name": "ipRules",
+        "count": "[length(parameters('allowedIpRanges'))]",
+        "input": {
+          "value": "[parameters('allowedIpRanges')[copyIndex('ipRules')]]",
+          "action": "Allow"
+        }
+      },
+      {
+        "name": "vnetRules",
+        "count": "[length(parameters('virtualNetworkSubnetIds'))]",
+        "input": {
+          "id": "[parameters('virtualNetworkSubnetIds')[copyIndex('vnetRules')]]",
+          "action": "Allow"
+        }
+      }
+    ],
+    "networkAclsDev": {
+      "defaultAction": "Allow"
+    },
+    "networkAclsRestricted": {
+      "defaultAction": "[if(equals(parameters('environment'), 'production'), 'Deny', 'Allow')]",
+      "ipRules": "[variables('ipRules')]",
+      "virtualNetworkRules": "[variables('vnetRules')]",
+      "bypass": "AzureServices"
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Storage/storageAccounts",
+      "apiVersion": "2023-01-01",
+      "name": "[parameters('storageAccountName')]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
+      "kind": "[parameters('kind')]",
+      "sku": {
+        "name": "[parameters('skuName')]"
+      },
+      "properties": {
+        "supportsHttpsTrafficOnly": true,
+        "minimumTlsVersion": "TLS1_2",
+        "allowBlobPublicAccess": false,
+        "allowSharedKeyAccess": true,
+        "encryption": {
+          "services": {
+            "blob": {
+              "enabled": true
+            },
+            "table": {
+              "enabled": "[parameters('enableTableEncryption')]"
+            },
+            "file": {
+              "enabled": true
+            }
+          },
+          "keySource": "Microsoft.Storage"
+        },
+        "networkAcls": "[if(equals(parameters('environment'), 'development'), variables('networkAclsDev'), variables('networkAclsRestricted'))]"
+      }
+    },
+    {
+      "type": "Microsoft.Storage/storageAccounts/blobServices",
+      "apiVersion": "2023-01-01",
+      "name": "[format('{0}/{1}', parameters('storageAccountName'), 'default')]",
+      "properties": {
+        "deleteRetentionPolicy": {
+          "enabled": "[parameters('enableBlobSoftDelete')]",
+          "days": "[parameters('blobSoftDeleteRetentionDays')]"
+        },
+        "containerDeleteRetentionPolicy": {
+          "enabled": "[parameters('enableBlobSoftDelete')]",
+          "days": "[parameters('blobSoftDeleteRetentionDays')]"
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Storage/storageAccounts/tableServices",
+      "apiVersion": "2023-01-01",
+      "name": "[format('{0}/{1}', parameters('storageAccountName'), 'default')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Storage/storageAccounts/tableServices/tables",
+      "apiVersion": "2023-01-01",
+      "name": "[format('{0}/{1}/{2}', parameters('storageAccountName'), 'default', 'PermissionSnapshots')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts/tableServices', parameters('storageAccountName'), 'default')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Storage/storageAccounts/tableServices/tables",
+      "apiVersion": "2023-01-01",
+      "name": "[format('{0}/{1}/{2}', parameters('storageAccountName'), 'default', 'AccessDetailSnapshots')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts/tableServices', parameters('storageAccountName'), 'default')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Storage/storageAccounts/tableServices/tables",
+      "apiVersion": "2023-01-01",
+      "name": "[format('{0}/{1}/{2}', parameters('storageAccountName'), 'default', 'ApiCallLogs')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts/tableServices', parameters('storageAccountName'), 'default')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Storage/storageAccounts/tableServices/tables",
+      "apiVersion": "2023-01-01",
+      "name": "[format('{0}/{1}/{2}', parameters('storageAccountName'), 'default', 'AuditLogs')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts/tableServices', parameters('storageAccountName'), 'default')]"
+      ]
+    }
+  ],
+  "outputs": {
+    "id": {
+      "type": "string",
+      "metadata": {
+        "description": "The resource ID of the Storage Account"
+      },
+      "value": "[resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName'))]"
+    },
+    "name": {
+      "type": "string",
+      "metadata": {
+        "description": "The name of the Storage Account"
+      },
+      "value": "[parameters('storageAccountName')]"
+    },
+    "tableEndpoint": {
+      "type": "string",
+      "metadata": {
+        "description": "The primary endpoint for Table Storage"
+      },
+      "value": "[reference(resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName')), '2023-01-01').primaryEndpoints.table]"
+    },
+    "blobEndpoint": {
+      "type": "string",
+      "metadata": {
+        "description": "The primary endpoint for Blob Storage"
+      },
+      "value": "[reference(resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName')), '2023-01-01').primaryEndpoints.blob]"
+    },
+    "connectionString": {
+      "type": "string",
+      "metadata": {
+        "description": "The primary connection string"
+      },
+      "value": "[format('DefaultEndpointsProtocol=https;AccountName={0};AccountKey={1};EndpointSuffix=core.windows.net', parameters('storageAccountName'), listKeys(resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName')), '2023-01-01').keys[0].value)]"
+    }
+  }
+}

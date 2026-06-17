@@ -1,0 +1,1 @@
+export { useProductName } from './useProductName';

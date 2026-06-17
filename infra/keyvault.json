@@ -1,0 +1,151 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.44.1.10279",
+      "templateHash": "2724553209399754602"
+    }
+  },
+  "parameters": {
+    "location": {
+      "type": "string",
+      "metadata": {
+        "description": "Azure region for the Key Vault"
+      }
+    },
+    "resourceSuffix": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource naming suffix (e.g., heimdall-dev)"
+      }
+    },
+    "enablePurgeProtection": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "Enable purge protection (recommended for production)"
+      }
+    },
+    "logAnalyticsWorkspaceId": {
+      "type": "string",
+      "metadata": {
+        "description": "Log Analytics Workspace ID for diagnostics"
+      }
+    },
+    "enableRbacAuthorization": {
+      "type": "bool",
+      "defaultValue": true,
+      "metadata": {
+        "description": "Enable RBAC authorization model (true) or access policies (false)"
+      }
+    },
+    "managedIdentityObjectIds": {
+      "type": "array",
+      "defaultValue": [],
+      "metadata": {
+        "description": "Object IDs of Managed Identities that need access to the Key Vault (used when RBAC is disabled)"
+      }
+    },
+    "tags": {
+      "type": "object",
+      "defaultValue": {},
+      "metadata": {
+        "description": "Resource tags"
+      }
+    }
+  },
+  "variables": {
+    "copy": [
+      {
+        "name": "accessPoliciesConfig",
+        "count": "[length(parameters('managedIdentityObjectIds'))]",
+        "input": {
+          "tenantId": "[subscription().tenantId]",
+          "objectId": "[parameters('managedIdentityObjectIds')[copyIndex('accessPoliciesConfig')]]",
+          "permissions": {
+            "secrets": [
+              "get",
+              "list"
+            ],
+            "keys": [
+              "get",
+              "list"
+            ],
+            "certificates": [
+              "get",
+              "list"
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "resources": [
+    {
+      "type": "Microsoft.KeyVault/vaults",
+      "apiVersion": "2023-07-01",
+      "name": "[format('kv-{0}', parameters('resourceSuffix'))]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
+      "properties": {
+        "tenantId": "[subscription().tenantId]",
+        "sku": {
+          "family": "A",
+          "name": "standard"
+        },
+        "enableRbacAuthorization": "[parameters('enableRbacAuthorization')]",
+        "enabledForDeployment": false,
+        "enabledForDiskEncryption": false,
+        "enabledForTemplateDeployment": true,
+        "enableSoftDelete": true,
+        "softDeleteRetentionInDays": 90,
+        "enablePurgeProtection": "[if(parameters('enablePurgeProtection'), true(), null())]",
+        "networkAcls": {
+          "defaultAction": "Allow",
+          "bypass": "AzureServices"
+        },
+        "accessPolicies": "[if(parameters('enableRbacAuthorization'), createArray(), variables('accessPoliciesConfig'))]"
+      }
+    },
+    {
+      "type": "Microsoft.Insights/diagnosticSettings",
+      "apiVersion": "2021-05-01-preview",
+      "scope": "[resourceId('Microsoft.KeyVault/vaults', format('kv-{0}', parameters('resourceSuffix')))]",
+      "name": "kv-diagnostics",
+      "properties": {
+        "workspaceId": "[parameters('logAnalyticsWorkspaceId')]",
+        "logs": [
+          {
+            "category": "AuditEvent",
+            "enabled": true
+          }
+        ],
+        "metrics": [
+          {
+            "category": "AllMetrics",
+            "enabled": true
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.KeyVault/vaults', format('kv-{0}', parameters('resourceSuffix')))]"
+      ]
+    }
+  ],
+  "outputs": {
+    "vaultId": {
+      "type": "string",
+      "value": "[resourceId('Microsoft.KeyVault/vaults', format('kv-{0}', parameters('resourceSuffix')))]"
+    },
+    "vaultUri": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.KeyVault/vaults', format('kv-{0}', parameters('resourceSuffix'))), '2023-07-01').vaultUri]"
+    },
+    "vaultName": {
+      "type": "string",
+      "value": "[format('kv-{0}', parameters('resourceSuffix'))]"
+    }
+  }
+}

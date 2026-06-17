@@ -1,0 +1,46 @@
+name: "Security Scan"
+description: "Check .NET dependencies for known vulnerabilities and deprecated packages"
+
+inputs:
+  fail-on-vulnerable:
+    description: "Whether to fail the step if vulnerable packages are found"
+    required: false
+    default: "true"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Check for vulnerable packages
+      shell: bash
+      run: |
+        dotnet list Heimdall.sln package --vulnerable --include-transitive 2>&1 | tee vulnerability-report.txt
+        if grep -q "has the following vulnerable packages" vulnerability-report.txt; then
+          echo "::error::Vulnerable packages detected. Review vulnerability-report.txt artifact for details."
+          if [ "${{ inputs.fail-on-vulnerable }}" == "true" ]; then
+            exit 1
+          fi
+        else
+          echo "No known vulnerabilities found."
+        fi
+
+    - name: Check for deprecated packages
+      shell: bash
+      run: |
+        dotnet list Heimdall.sln package --deprecated 2>&1 | tee deprecated-report.txt
+        if grep -q "has the following deprecated packages" deprecated-report.txt; then
+          echo "::warning::Deprecated packages detected. Consider upgrading."
+        fi
+
+    - name: Upload vulnerability report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: vulnerability-report
+        path: vulnerability-report.txt
+
+    - name: Upload deprecated packages report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: deprecated-report
+        path: deprecated-report.txt

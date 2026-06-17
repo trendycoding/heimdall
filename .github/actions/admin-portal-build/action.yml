@@ -1,0 +1,62 @@
+name: "Admin Portal Build"
+description: "Install dependencies, lint, build the React Admin Portal, and deploy to Azure Static Web App"
+
+inputs:
+  node-version:
+    description: "Node.js version to use"
+    required: false
+    default: "20"
+  working-directory:
+    description: "Path to the Admin Portal project"
+    required: false
+    default: "src/Heimdall.AdminPortal"
+  deploy:
+    description: "Whether to deploy to Azure Static Web App"
+    required: false
+    default: "false"
+  azure-static-web-apps-api-token:
+    description: "Deployment token for Azure Static Web Apps"
+    required: false
+    default: ""
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: "npm"
+        cache-dependency-path: ${{ inputs.working-directory }}/package-lock.json
+
+    - name: Install dependencies
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: npm ci
+
+    - name: Lint
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: npm run lint
+
+    - name: Build
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: npm run build
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: admin-portal-dist
+        path: ${{ inputs.working-directory }}/dist
+
+    - name: Deploy to Azure Static Web App
+      if: inputs.deploy == 'true'
+      uses: Azure/static-web-apps-deploy@v1
+      with:
+        azure_static_web_apps_api_token: ${{ inputs.azure-static-web-apps-api-token }}
+        repo_token: ${{ github.token }}
+        action: "upload"
+        app_location: ${{ inputs.working-directory }}
+        output_location: "dist"
+        skip_app_build: true

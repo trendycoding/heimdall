@@ -1,0 +1,170 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main, staging, dev]
+  workflow_call:
+    outputs:
+      image-tag:
+        description: "The container image tag built by CI"
+        value: ${{ jobs.build.outputs.image-tag }}
+
+env:
+  DOTNET_VERSION: "8.0.x"
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}/heimdall-api
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    outputs:
+      image-tag: ${{ steps.meta.outputs.version }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Build .NET solution
+        uses: ./.github/actions/build
+        with:
+          configuration: Release
+
+      - name: Generate image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha,prefix=
+            type=ref,event=branch
+            type=ref,event=pr
+
+      - name: Build container image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: false
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Report failure
+        if: failure()
+        run: |
+          echo "::error::Build stage failed. Check the build output above for details."
+          exit 1
+
+  lint:
+    name: Lint
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore dependencies
+        run: dotnet restore Heimdall.sln
+
+      - name: Run code format check
+        run: dotnet format Heimdall.sln --verify-no-changes --verbosity diagnostic
+
+      - name: Run code analysis
+        run: dotnet build Heimdall.sln --configuration Release --no-restore /p:EnforceCodeStyleInBuild=true /p:TreatWarningsAsErrors=false
+
+      - name: Report failure
+        if: failure()
+        run: |
+          echo "::error::Lint stage failed. Code formatting or analysis issues detected."
+          exit 1
+
+  test:
+    name: Test
+    needs: lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore dependencies
+        run: dotnet restore Heimdall.sln
+
+      - name: Build solution
+        run: dotnet build Heimdall.sln --configuration Release --no-restore
+
+      - name: Run tests
+        uses: ./.github/actions/test
+        with:
+          configuration: Release
+          collect-coverage: "true"
+
+      - name: Report failure
+        if: failure()
+        run: |
+          echo "::error::Test stage failed. One or more tests did not pass."
+          exit 1
+
+  security-scan:
+    name: Security Scan
+    needs: test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore dependencies
+        run: dotnet restore Heimdall.sln
+
+      - name: Run security scan
+        uses: ./.github/actions/security-scan
+        with:
+          fail-on-vulnerable: "true"
+
+      - name: Report failure
+        if: failure()
+        run: |
+          echo "::error::Security scan stage failed. Vulnerable dependencies detected."
+          exit 1
+
+  admin-portal:
+    name: Admin Portal Build
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build Admin Portal
+        uses: ./.github/actions/admin-portal-build
+        with:
+          node-version: "20"
+          deploy: "false"
+
+      - name: Report failure
+        if: failure()
+        run: |
+          echo "::error::Admin Portal build stage failed. Check lint or build output above."
+          exit 1

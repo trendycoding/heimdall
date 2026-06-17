@@ -1,0 +1,61 @@
+name: "Database Migration"
+description: "Apply EF Core migrations to a target environment database"
+
+inputs:
+  azure-client-id:
+    description: "Azure AD client ID for OIDC auth"
+    required: true
+  azure-tenant-id:
+    description: "Azure AD tenant ID"
+    required: true
+  azure-subscription-id:
+    description: "Azure subscription ID"
+    required: true
+  connection-string:
+    description: "SQL connection string for the target database"
+    required: true
+  configuration:
+    description: "Build configuration"
+    required: false
+    default: "Release"
+  dotnet-version:
+    description: ".NET SDK version to use"
+    required: false
+    default: "8.0.x"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ inputs.dotnet-version }}
+
+    - name: Install EF Core tools
+      shell: bash
+      run: dotnet tool install --global dotnet-ef || dotnet tool update --global dotnet-ef
+
+    - name: Restore dependencies
+      shell: bash
+      run: dotnet restore Heimdall.sln
+
+    - name: Build solution
+      shell: bash
+      run: dotnet build Heimdall.sln --configuration ${{ inputs.configuration }} --no-restore
+
+    - name: Azure Login
+      uses: azure/login@v2
+      with:
+        client-id: ${{ inputs.azure-client-id }}
+        tenant-id: ${{ inputs.azure-tenant-id }}
+        subscription-id: ${{ inputs.azure-subscription-id }}
+
+    - name: Apply EF Core migrations
+      shell: bash
+      run: |
+        dotnet ef database update \
+          --project src/Heimdall.Infrastructure/Heimdall.Infrastructure.csproj \
+          --startup-project src/Heimdall.Api/Heimdall.Api.csproj \
+          --configuration ${{ inputs.configuration }} \
+          --no-build \
+          --connection "${{ inputs.connection-string }}"
