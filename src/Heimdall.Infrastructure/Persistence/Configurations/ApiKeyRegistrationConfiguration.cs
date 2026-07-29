@@ -3,26 +3,29 @@ using Heimdall.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using ApplicationEntity = Heimdall.Domain.Entities.Application;
 
 namespace Heimdall.Infrastructure.Persistence.Configurations;
 
-public class ApplicationConfiguration : IEntityTypeConfiguration<ApplicationEntity>
+public class ApiKeyRegistrationConfiguration : IEntityTypeConfiguration<ApiKeyRegistration>
 {
-    public void Configure(EntityTypeBuilder<ApplicationEntity> builder)
+    public void Configure(EntityTypeBuilder<ApiKeyRegistration> builder)
     {
         builder.HasKey(e => e.Id);
+
+        builder.Property(e => e.TenantId)
+            .IsRequired();
 
         builder.Property(e => e.Name)
             .IsRequired()
             .HasMaxLength(200);
 
-        builder.Property(e => e.Description)
-            .HasMaxLength(1000);
-
-        builder.Property(e => e.ClientIdentifier)
+        builder.Property(e => e.KeyHash)
             .IsRequired()
             .HasMaxLength(128);
+
+        builder.Property(e => e.KeyPrefix)
+            .IsRequired()
+            .HasMaxLength(12);
 
         builder.Property(e => e.Status)
             .IsRequired()
@@ -40,23 +43,20 @@ public class ApplicationConfiguration : IEntityTypeConfiguration<ApplicationEnti
             c => c.Aggregate(0, (a, v) => HashCode.Combine(a, v.GetHashCode())),
             c => c.ToList());
 
-        // JSON conversion for List<string> properties
-        builder.Property(e => e.AllowedRedirectUris)
+        builder.Property(e => e.Scopes)
             .HasConversion(
                 v => JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
                 v => JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null) ?? new List<string>())
             .HasColumnType("nvarchar(max)")
             .Metadata.SetValueComparer(stringListComparer);
 
-        builder.Property(e => e.AllowedOrigins)
-            .HasConversion(
-                v => JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
-                v => JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null) ?? new List<string>())
-            .HasColumnType("nvarchar(max)")
-            .Metadata.SetValueComparer(stringListComparer);
+        // Index on KeyHash for fast lookup
+        builder.HasIndex(e => e.KeyHash).IsUnique();
 
-        // Unique index: ClientIdentifier per tenant
-        builder.HasIndex(e => new { e.TenantId, e.ClientIdentifier })
-            .IsUnique();
+        // Index on prefix for fast prefix-based search
+        builder.HasIndex(e => e.KeyPrefix);
+
+        // Index on tenant for listing
+        builder.HasIndex(e => e.TenantId);
     }
 }

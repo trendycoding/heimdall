@@ -15,7 +15,8 @@ public class AdminAuthorizationMiddleware
     [
         "/health",
         "/swagger",
-        "/favicon.ico"
+        "/favicon.ico",
+        "/api/me"
     ];
 
     public AdminAuthorizationMiddleware(RequestDelegate next, ILogger<AdminAuthorizationMiddleware> logger)
@@ -34,11 +35,32 @@ public class AdminAuthorizationMiddleware
             return;
         }
 
-        // If using API key auth (service-to-service), skip admin scope check
+        // If using API key auth (service-to-service), validate against key's scopes
         if (context.Items.ContainsKey("AuthMethod")
             && context.Items["AuthMethod"]?.ToString() == "ApiKey")
         {
-            await _next(context);
+            var requiredScopeForKey = GetRequiredScope(context);
+            if (requiredScopeForKey is null)
+            {
+                await _next(context);
+                return;
+            }
+
+            // Check if the API key has SecurityServiceAdmin (acts as super admin)
+            if (tenantContext.IsSuperAdmin)
+            {
+                await _next(context);
+                return;
+            }
+
+            // Check if the API key's scopes satisfy the requirement
+            if (tenantContext.AdminScopes.Any(s => s.Equals(requiredScopeForKey, StringComparison.OrdinalIgnoreCase)))
+            {
+                await _next(context);
+                return;
+            }
+
+            await WriteForbiddenResponse(context, $"API key does not have required scope: {requiredScopeForKey}");
             return;
         }
 

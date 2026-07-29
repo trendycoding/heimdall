@@ -1,5 +1,6 @@
 export { Dashboard } from './Dashboard';
-export { TenantsPage } from './TenantsPage';
+export { OnboardingPage } from './OnboardingPage';
+export { TenantSelectorPage } from './TenantSelectorPage';
 export { ApplicationsPage } from './ApplicationsPage';
 export { IdentityProvidersPage } from './IdentityProvidersPage';
 export { UsersPage } from './UsersPage';

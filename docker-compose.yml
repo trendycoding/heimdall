@@ -27,6 +27,8 @@ services:
     volumes:
       - azurite-data:/data
     command: "azurite --blobHost 0.0.0.0 --queueHost 0.0.0.0 --tableHost 0.0.0.0 --loose"
+    profiles:
+      - storage
 
   redis:
     image: redis:7-alpine
@@ -40,6 +42,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 3
+    profiles:
+      - with-redis
 
 volumes:
   sqlserver-data:

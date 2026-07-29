@@ -135,6 +135,8 @@ public class UniquenessConstraint_EnforcementTests
         public DbSet<PermissionTemplateAccessDetail> PermissionTemplateAccessDetails => _ctx.PermissionTemplateAccessDetails;
         public DbSet<AuditLog> AuditLogs => _ctx.AuditLogs;
         public DbSet<ApiCallLog> ApiCallLogs => _ctx.ApiCallLogs;
+        public DbSet<TenantMembership> TenantMemberships => _ctx.Set<TenantMembership>();
+        public DbSet<ApiKeyRegistration> ApiKeyRegistrations => _ctx.Set<ApiKeyRegistration>();
         public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) => _ctx.SaveChangesAsync(cancellationToken);
     }
 

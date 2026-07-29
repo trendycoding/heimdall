@@ -26,6 +26,8 @@ public class HeimdallDbContext : DbContext, IHeimdallDbContext
 
     // Non-tenant-scoped entities
     public DbSet<Tenant> Tenants => Set<Tenant>();
+    public DbSet<TenantMembership> TenantMemberships => Set<TenantMembership>();
+    public DbSet<ApiKeyRegistration> ApiKeyRegistrations => Set<ApiKeyRegistration>();
     public DbSet<PermissionTemplatePermission> PermissionTemplatePermissions => Set<PermissionTemplatePermission>();
     public DbSet<PermissionTemplateGroup> PermissionTemplateGroups => Set<PermissionTemplateGroup>();
     public DbSet<PermissionTemplateAccessDetail> PermissionTemplateAccessDetails => Set<PermissionTemplateAccessDetail>();

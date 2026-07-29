@@ -49,6 +49,7 @@ public static class DependencyInjection
         services.AddScoped<IAccessDetailResolver, AccessDetailResolver>();
         services.AddScoped<ITemplateApplicationService, TemplateApplicationService>();
         services.AddScoped<ITokenValidationService, TokenValidationService>();
+        services.AddScoped<IApiKeyValidationService, ApiKeyValidationService>();
         services.AddScoped<IAuditService, AuditService>();
         services.AddScoped<IApiCallLogService, ApiCallLogService>();
         services.AddScoped<IEntityStateProvider, EntityStateProvider>();

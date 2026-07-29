@@ -10,8 +10,11 @@ import {
   AccountInfo,
 } from '@azure/msal-browser';
 import { msalConfig, loginRequest, apiTokenRequest } from './msalConfig';
+import { MockAuthProvider, useMockAuth } from './MockAuthProvider';
 
-const msalInstance = new PublicClientApplication(msalConfig);
+const isMockAuth = import.meta.env.VITE_AUTH_MOCK === 'true';
+
+const msalInstance = isMockAuth ? null! : new PublicClientApplication(msalConfig);
 
 interface AuthContextValue {
   isAuthenticated: boolean;
@@ -68,6 +71,11 @@ function AuthContextProvider({ children }: { children: React.ReactNode }) {
 }
 
 export function useAuth(): AuthContextValue {
+  if (isMockAuth) {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    return useMockAuth();
+  }
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const context = useContext(AuthContext);
   if (!context) {
     throw new Error('useAuth must be used within an AuthProvider');
@@ -76,6 +84,10 @@ export function useAuth(): AuthContextValue {
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  if (isMockAuth) {
+    return <MockAuthProvider>{children}</MockAuthProvider>;
+  }
+
   return (
     <MsalProvider instance={msalInstance}>
       <AuthContextProvider>{children}</AuthContextProvider>

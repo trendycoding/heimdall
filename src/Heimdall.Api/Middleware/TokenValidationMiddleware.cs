@@ -25,7 +25,7 @@ public class TokenValidationMiddleware
         _logger = logger;
     }
 
-    public async Task InvokeAsync(HttpContext context, ITokenValidationService tokenValidationService)
+    public async Task InvokeAsync(HttpContext context, ITokenValidationService tokenValidationService, IApiKeyValidationService apiKeyValidationService)
     {
         var path = context.Request.Path.Value ?? string.Empty;
 
@@ -75,9 +75,22 @@ public class TokenValidationMiddleware
         }
         else if (!string.IsNullOrEmpty(apiKey))
         {
-            // API key validation: store key for downstream tenant resolution
+            // Validate the API key
+            var apiKeyResult = await apiKeyValidationService.ValidateAsync(apiKey, context.RequestAborted);
+
+            if (!apiKeyResult.IsValid)
+            {
+                _logger.LogWarning("API key validation failed: {Error}", apiKeyResult.Error);
+                await WriteUnauthorizedResponse(context, apiKeyResult.Error ?? "Invalid API key.");
+                return;
+            }
+
+            // Populate context for downstream middleware
             context.Items["ApiKey"] = apiKey;
             context.Items["AuthMethod"] = "ApiKey";
+            context.Items["ApiKeyTenantId"] = apiKeyResult.TenantId;
+            context.Items["ApiKeyScopes"] = apiKeyResult.Scopes;
+            context.Items["ApiKeyName"] = apiKeyResult.KeyName;
         }
 
         await _next(context);

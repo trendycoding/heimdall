@@ -16,7 +16,8 @@ public class TenantResolutionMiddleware
     [
         "/health",
         "/swagger",
-        "/favicon.ico"
+        "/favicon.ico",
+        "/api/me"
     ];
 
     public TenantResolutionMiddleware(RequestDelegate next, ILogger<TenantResolutionMiddleware> logger)
@@ -82,6 +83,29 @@ public class TenantResolutionMiddleware
                 .AsReadOnly();
         }
 
+        // If API key auth, populate scopes from the validated key
+        if (context.Items.TryGetValue("AuthMethod", out var authMethod)
+            && authMethod?.ToString() == "ApiKey")
+        {
+            if (context.Items.TryGetValue("ApiKeyScopes", out var apiKeyScopes)
+                && apiKeyScopes is IReadOnlyList<string> scopes)
+            {
+                mutableContext.AdminScopes = scopes;
+            }
+
+            var keyName = context.Items.TryGetValue("ApiKeyName", out var kn) ? kn?.ToString() : "api-key";
+            mutableContext.ActorSubjectId = $"apikey:{keyName}";
+            mutableContext.ActorEmail = $"apikey:{keyName}";
+
+            // API keys with SecurityServiceAdmin scope are super admins
+            if (mutableContext.AdminScopes.Any(s =>
+                s.Equals("SecurityServiceAdmin", StringComparison.OrdinalIgnoreCase)
+                || s.Equals("SecurityService.Admin", StringComparison.OrdinalIgnoreCase)))
+            {
+                mutableContext.IsSuperAdmin = true;
+            }
+        }
+
         context.Items["TenantId"] = resolvedTenantId.Value.ToString();
 
         await _next(context);
@@ -116,12 +140,11 @@ public class TenantResolutionMiddleware
             context.Items["ClientId"] = clientIdClaim;
         }
 
-        // 4. API key (stored by TokenValidationMiddleware)
-        if (context.Items.TryGetValue("ApiKey", out var apiKey) && apiKey is not null)
+        // 4. API key (validated by TokenValidationMiddleware, tenant already resolved)
+        if (context.Items.TryGetValue("ApiKeyTenantId", out var apiKeyTenantObj)
+            && apiKeyTenantObj is Guid apiKeyTenantId)
         {
-            // In a full implementation, we'd look up the API key registration
-            // and return its TenantId. For now, this remains as a resolution path.
-            context.Items["ApiKeyForResolution"] = apiKey;
+            return apiKeyTenantId;
         }
 
         return null;

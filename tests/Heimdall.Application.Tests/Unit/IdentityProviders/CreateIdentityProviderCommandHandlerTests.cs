@@ -203,6 +203,8 @@ public class CreateIdentityProviderCommandHandlerTests
         public DbSet<PermissionTemplateAccessDetail> PermissionTemplateAccessDetails => throw new NotImplementedException();
         public DbSet<AuditLog> AuditLogs => throw new NotImplementedException();
         public DbSet<ApiCallLog> ApiCallLogs => throw new NotImplementedException();
+        public DbSet<TenantMembership> TenantMemberships => throw new NotImplementedException();
+        public DbSet<ApiKeyRegistration> ApiKeyRegistrations => throw new NotImplementedException();
 
         public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
             => _context.SaveChangesAsync(cancellationToken);

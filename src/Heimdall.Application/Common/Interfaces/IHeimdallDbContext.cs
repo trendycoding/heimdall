@@ -31,6 +31,8 @@ public interface IHeimdallDbContext
     DbSet<PermissionTemplatePermission> PermissionTemplatePermissions { get; }
     DbSet<PermissionTemplateGroup> PermissionTemplateGroups { get; }
     DbSet<PermissionTemplateAccessDetail> PermissionTemplateAccessDetails { get; }
+    DbSet<TenantMembership> TenantMemberships { get; }
+    DbSet<ApiKeyRegistration> ApiKeyRegistrations { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

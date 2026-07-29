@@ -2,7 +2,6 @@ import { RouteObject } from 'react-router-dom';
 import { Layout } from './components';
 import {
   Dashboard,
-  TenantsPage,
   ApplicationsPage,
   IdentityProvidersPage,
   UsersPage,
@@ -20,7 +19,8 @@ import {
 
 /**
  * Application route definitions.
- * Uses the Layout component as the app shell with sidebar navigation.
+ * The Layout component handles auth gating, tenant selection, and the app shell.
+ * All child routes are tenant-scoped (require an active tenant).
  */
 export const routes: RouteObject[] = [
   {
@@ -28,7 +28,6 @@ export const routes: RouteObject[] = [
     element: <Layout />,
     children: [
       { index: true, element: <Dashboard /> },
-      { path: 'tenants', element: <TenantsPage /> },
       { path: 'applications', element: <ApplicationsPage /> },
       { path: 'identity-providers', element: <IdentityProvidersPage /> },
       { path: 'users', element: <UsersPage /> },
