@@ -62,16 +62,16 @@ var envConfig = {
     logAnalyticsRetentionDays: 30
   }
   prod: {
-    sqlSkuName: 'S1'
-    sqlSkuTier: 'Standard'
-    sqlSkuCapacity: 20
-    sqlMaxSizeBytes: 268435456000 // 250 GB
-    sqlBackupRetentionDays: 35
+    sqlSkuName: 'Basic'
+    sqlSkuTier: 'Basic'
+    sqlSkuCapacity: 5
+    sqlMaxSizeBytes: 2147483648 // 2 GB
+    sqlBackupRetentionDays: 7
     keyVaultSkuName: 'standard'
-    apimSkuName: 'Standard'
-    apimSkuCapacity: 1
-    appInsightsRetentionDays: 90
-    logAnalyticsRetentionDays: 90
+    apimSkuName: 'Consumption'
+    apimSkuCapacity: 0
+    appInsightsRetentionDays: 30
+    logAnalyticsRetentionDays: 30
   }
 }
 
@@ -215,9 +215,9 @@ module redis 'redis.bicep' = if (environment != 'dev') {
     redisName: '${resourceSuffix}-redis'
     location: location
     environment: environment == 'staging' ? 'staging' : 'production'
-    skuName: environment == 'staging' ? 'Basic' : 'Premium'
-    skuFamily: environment == 'staging' ? 'C' : 'P'
-    skuCapacity: environment == 'staging' ? 0 : 1
+    skuName: 'Basic'
+    skuFamily: 'C'
+    skuCapacity: 0
     logAnalyticsWorkspaceId: monitoring.outputs.logAnalyticsWorkspaceId
     tags: commonTags
   }
@@ -271,10 +271,10 @@ module containerApp 'containerapp.bicep' = if (environment == 'prod') {
     appName: '${resourceSuffix}-app'
     location: location
     containerImage: containerImage
-    minReplicas: 2
-    maxReplicas: 10
-    cpuCores: '0.5'
-    memory: '1Gi'
+    minReplicas: 0
+    maxReplicas: 2
+    cpuCores: '0.25'
+    memory: '0.5Gi'
     logAnalyticsWorkspaceId: monitoring.outputs.logAnalyticsWorkspaceId
     managedIdentityId: identity.outputs.id
     envVars: [

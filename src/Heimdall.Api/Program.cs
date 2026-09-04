@@ -7,7 +7,9 @@ using Heimdall.Api.Filters;
 using Heimdall.Api.HealthChecks;
 using Heimdall.Api.Middleware;
 using Heimdall.Application;
+using Heimdall.Domain.Enums;
 using Heimdall.Infrastructure;
+using Heimdall.Infrastructure.Cloud;
 using Heimdall.Infrastructure.Logging;
 using Heimdall.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -15,11 +17,18 @@ using Microsoft.EntityFrameworkCore;
 var builder = WebApplication.CreateBuilder(args);
 
 // ---------------------------------------------------------------------------
-// Configuration: App Configuration with sentinel-based refresh (if configured)
+// Cloud provider selection (Azure | Aws | None). Defaults to Azure.
+// Azure-specific configuration sources are only wired when running on Azure.
 // ---------------------------------------------------------------------------
+var cloudProvider = CloudServiceRegistration.ResolveProvider(builder.Configuration);
+var isAzure = cloudProvider == CloudProvider.Azure;
+
 var appConfigConnectionString = builder.Configuration.GetConnectionString("AppConfiguration");
-if (!string.IsNullOrWhiteSpace(appConfigConnectionString))
+var useAzureAppConfig = isAzure && !string.IsNullOrWhiteSpace(appConfigConnectionString);
+
+if (useAzureAppConfig)
 {
+    // Configuration: Azure App Configuration with sentinel-based refresh
     builder.Configuration.AddAzureAppConfiguration(options =>
     {
         options.Connect(appConfigConnectionString)
@@ -30,16 +39,12 @@ if (!string.IsNullOrWhiteSpace(appConfigConnectionString))
             });
     });
 
-    // Register App Configuration services for runtime refresh via middleware
     builder.Services.AddAzureAppConfiguration();
 }
 
-// ---------------------------------------------------------------------------
-// Configuration: Key Vault integration (fail startup if unreachable)
-// Configured with retry policy (3 retries with exponential backoff)
-// ---------------------------------------------------------------------------
+// Configuration: Azure Key Vault as a configuration source (Azure only).
 var keyVaultUri = builder.Configuration["KeyVault:Uri"];
-if (!string.IsNullOrWhiteSpace(keyVaultUri))
+if (isAzure && !string.IsNullOrWhiteSpace(keyVaultUri))
 {
     var secretClientOptions = new Azure.Security.KeyVault.Secrets.SecretClientOptions
     {
@@ -109,18 +114,21 @@ builder.Services.AddSwaggerGen(options =>
     });
 });
 
-// Application Insights (if connection string is available)
+// Cloud-agnostic telemetry (custom metrics via System.Diagnostics.Metrics)
+builder.Services.AddHeimdallTelemetry();
+
+// Azure Application Insights (only when running on Azure with a connection string)
 var appInsightsConnectionString = builder.Configuration["ApplicationInsights:ConnectionString"];
-if (!string.IsNullOrWhiteSpace(appInsightsConnectionString))
+if (isAzure && !string.IsNullOrWhiteSpace(appInsightsConnectionString))
 {
     builder.Services.AddApplicationInsightsTelemetry(options =>
     {
         options.ConnectionString = appInsightsConnectionString;
     });
-}
 
-// Heimdall telemetry enrichment (CorrelationId initializer, sensitive data redaction, custom metrics)
-builder.Services.AddHeimdallTelemetry();
+    // Azure-specific telemetry enrichment (CorrelationId initializer, sensitive data redaction)
+    builder.Services.AddAzureApplicationInsightsEnrichment();
+}
 
 // Structured logging (JSON console with timestamp, severity, CorrelationId, source)
 builder.Logging.AddHeimdallStructuredLogging();
@@ -142,14 +150,11 @@ if (!string.IsNullOrWhiteSpace(redisConnectionString))
         timeout: HealthCheckConfiguration.Timeout);
 }
 
-var healthCheckKeyVaultUri = builder.Configuration["KeyVault:Uri"];
-if (!string.IsNullOrWhiteSpace(healthCheckKeyVaultUri))
-{
-    healthChecksBuilder.AddCheck<KeyVaultHealthCheck>(
-        name: "keyvault",
-        tags: new[] { "secrets", "keyvault" },
-        timeout: HealthCheckConfiguration.Timeout);
-}
+// Secret store health check — cloud-agnostic via ISecretProvider
+healthChecksBuilder.AddCheck<SecretStoreHealthCheck>(
+    name: "secret-store",
+    tags: new[] { "secrets" },
+    timeout: HealthCheckConfiguration.Timeout);
 
 // ---------------------------------------------------------------------------
 // Build App
@@ -177,7 +182,7 @@ app.UseHttpsRedirection();
 
 // Azure App Configuration refresh middleware — checks sentinel key on each request
 // and triggers configuration reload when sentinel value changes (30s cache interval)
-if (!string.IsNullOrWhiteSpace(appConfigConnectionString))
+if (useAzureAppConfig)
 {
     app.UseAzureAppConfiguration();
 }

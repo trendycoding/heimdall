@@ -1,6 +1,7 @@
 using Heimdall.Application.Common.Interfaces;
 using Heimdall.Domain.Interfaces;
 using Heimdall.Infrastructure.Caching;
+using Heimdall.Infrastructure.Cloud;
 using Heimdall.Infrastructure.Identity;
 using Heimdall.Infrastructure.Persistence;
 using Heimdall.Infrastructure.Services;
@@ -23,10 +24,23 @@ public static class DependencyInjection
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        // Database
+        // Database — provider selected by "Database:Provider" (SqlServer | Postgres).
+        // Defaults to SqlServer. Postgres support requires adding the Npgsql EF provider
+        // package; the switch is wired so an AWS/RDS deployment can enable it.
         var connectionString = configuration.GetConnectionString("HeimdallDb");
+        var dbProvider = configuration["Database:Provider"] ?? "SqlServer";
+
         services.AddDbContext<HeimdallDbContext>(options =>
         {
+            if (dbProvider.Equals("Postgres", StringComparison.OrdinalIgnoreCase)
+                || dbProvider.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase))
+            {
+                // To enable: add Npgsql.EntityFrameworkCore.PostgreSQL and call UseNpgsql here.
+                throw new NotSupportedException(
+                    "Postgres provider is configured but not yet wired. Add the Npgsql EF Core " +
+                    "package and call options.UseNpgsql(connectionString) in DependencyInjection.cs.");
+            }
+
             options.UseSqlServer(connectionString, sqlOptions =>
             {
                 sqlOptions.EnableRetryOnFailure(
@@ -71,9 +85,9 @@ public static class DependencyInjection
             services.AddSingleton<ICacheService, InMemoryCacheService>();
         }
 
-        // Key Vault resilience — local memory cache of secrets with retry on transient failures
-        services.AddMemoryCache();
-        services.AddSingleton<ResilientKeyVaultProvider>();
+        // Cloud-agnostic secret provider (Azure Key Vault / AWS Secrets Manager / config).
+        // Selected by the "Cloud:Provider" setting; defaults to Azure.
+        services.AddCloudServices(configuration);
 
         return services;
     }

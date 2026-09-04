@@ -11,19 +11,30 @@ namespace Heimdall.Infrastructure.Logging;
 public static class StructuredLoggingExtensions
 {
     /// <summary>
-    /// Registers Application Insights telemetry initializers, processors, and custom metrics.
-    /// Call this after AddApplicationInsightsTelemetry() in Program.cs.
+    /// Registers cloud-agnostic telemetry: the custom metrics service, which is built on
+    /// <see cref="System.Diagnostics.Metrics"/> and works with any OpenTelemetry-compatible
+    /// exporter (Application Insights, CloudWatch, OTLP collector, etc.).
     /// </summary>
     public static IServiceCollection AddHeimdallTelemetry(this IServiceCollection services)
+    {
+        // Custom metrics service — vendor-neutral (System.Diagnostics.Metrics)
+        services.AddSingleton<IHeimdallMetricsService, HeimdallMetricsService>();
+
+        return services;
+    }
+
+    /// <summary>
+    /// Registers Azure Application Insights-specific telemetry enrichment: the CorrelationId
+    /// initializer and the sensitive-data redaction processor. Only call this when running on
+    /// Azure with Application Insights configured (i.e. after AddApplicationInsightsTelemetry()).
+    /// </summary>
+    public static IServiceCollection AddAzureApplicationInsightsEnrichment(this IServiceCollection services)
     {
         // Telemetry initializer: adds CorrelationId to all telemetry items
         services.AddSingleton<ITelemetryInitializer, CorrelationIdTelemetryInitializer>();
 
         // Telemetry processor: redacts sensitive data from all log output
         services.AddApplicationInsightsTelemetryProcessor<SensitiveDataTelemetryProcessor>();
-
-        // Custom metrics service
-        services.AddSingleton<IHeimdallMetricsService, HeimdallMetricsService>();
 
         return services;
     }
