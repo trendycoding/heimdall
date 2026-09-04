@@ -13,6 +13,11 @@ References.
 
 Statuses: Proposed, Accepted, Superseded (link to the superseding ADR), Deprecated.
 
+## Related guides
+
+- [AWS Deployment Guide](../AWS_DEPLOYMENT_GUIDE.md) — TODO checklist for porting
+  Heimdall to AWS (implements the abstractions from ADR 0002).
+
 ## Index
 
 | ID | Title | Status |
